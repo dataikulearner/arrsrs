@@ -1,0 +1,165 @@
+{
+  "arrimage": {
+    "source": "RDS_SRS_CAPITAL.uds_fac_arrime",
+    "approach_col": "cd_tp_approche",
+    "columns": {
+      "cd_pole_pmas": {
+        "role": "axis",
+        "type": "string"
+      },
+      "cd_metier_pmas": {
+        "role": "axis",
+        "type": "string"
+      },
+      "cd_pays_business_cal": {
+        "role": "axis",
+        "type": "string"
+      },
+      "cd_site_comptable": {
+        "role": "axis",
+        "type": "string"
+      },
+      "cd_tp_approche": {
+        "role": "axis",
+        "type": "string"
+      },
+      "cd_sous_type_risque": {
+        "role": "axis",
+        "type": "string"
+      },
+      "cd_type_encours_arc": {
+        "role": "axis",
+        "type": "string"
+      },
+      "cd_type_encours": {
+        "role": "axis",
+        "type": "string"
+      },
+      "id_modele_notation": {
+        "role": "axis",
+        "type": "string"
+      },
+      "cd_cec_fac_std": {
+        "role": "source",
+        "type": "string"
+      },
+      "cd_cec_fac_irba": {
+        "role": "source",
+        "type": "string"
+      },
+      "cd_sous_classe_expo": {
+        "role": "source",
+        "type": "string"
+      },
+      "cd_ss_cl_expo_std": {
+        "role": "source",
+        "type": "string"
+      },
+      "mt_cal_ead_tot": {
+        "role": "measure",
+        "type": "double"
+      },
+      "mt_cal_rwa_tot": {
+        "role": "measure",
+        "type": "double"
+      },
+      "mt_cal_expo_tot": {
+        "role": "measure",
+        "type": "double"
+      },
+      "nb_maturite_irba": {
+        "role": "measure",
+        "type": "double"
+      },
+      "tx_edf_1an_irba": {
+        "role": "measure",
+        "type": "double"
+      },
+      "cd_secteur_eco": {
+        "role": "axis",
+        "type": "string"
+      },
+      "cd_pole_pmas_ap_acc": {
+        "role": "source",
+        "type": "string"
+      },
+      "cd_metier_pmas_ap_acc": {
+        "role": "axis",
+        "type": "string"
+      },
+      "cd_stage": {
+        "role": "axis",
+        "type": "string"
+      },
+      "cd_note_tiers": {
+        "role": "axis",
+        "type": "string"
+      },
+      "cd_classe_expo": {
+        "role": "axis",
+        "type": "string"
+      },
+      "tx_lgd_avant_flex": {
+        "role": "measure",
+        "type": "double"
+      },
+      "tx_pd_moyenne": {
+        "role": "measure",
+        "type": "double"
+      },
+      "tx_ltv_cur": {
+        "role": "measure",
+        "type": "double"
+      },
+      "tx_lgd_irba": {
+        "role": "measure",
+        "type": "double"
+      },
+      "mt_cal_prov_gen_aff_tot": {
+        "role": "measure",
+        "type": "double"
+      },
+      "id_fem": {
+        "role": "line_id",
+        "type": "string"
+      },
+      "id_tiers": {
+        "role": "line_id",
+        "type": "string"
+      }
+    },
+    "derived_axes": {
+      "cd_cec": {
+        "rule": "isin",
+        "col": "cd_tp_approche",
+        "values": [
+          "AS",
+          "AS_PPU"
+        ],
+        "then": "cd_cec_fac_std",
+        "otherwise": "cd_cec_fac_irba"
+      },
+      "cd_asset_class": {
+        "rule": "isin",
+        "col": "cd_tp_approche",
+        "values": [
+          "NI_C",
+          "NI_F"
+        ],
+        "then": "cd_sous_classe_expo",
+        "otherwise": "cd_ss_cl_expo_std"
+      }
+    },
+    "derived_measures": {
+      "mt_cal_ead_tot_irb": {
+        "rule": "isin",
+        "col": "cd_tp_approche",
+        "values": [
+          "NI_C",
+          "NI_F"
+        ],
+        "then": "mt_cal_ead_tot"
+      }
+    }
+  }
+}
