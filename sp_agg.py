@@ -57,6 +57,11 @@ def compute_period(spark, run, registry, period, period_run, axes_list, errors):
     """All axes of one (run, period); result cached and materialised (the source is evicted afterwards)"""
     kwargs = {k: run[k] for k in pp.DEFAULTS if k in run}
     kwargs["columns"] = registry
+    # Only the columns of this run must exist in the partition (registry shared by stda and sgcp)
+    kwargs["used_columns"] = sorted({a for axes in run["axes_str"].split("/") for a in axes.split("___")}
+                                    - {pp.ENTITY_COL}
+                                    | set(run["target_variables"]) | set(run["segment_vars"].values())
+                                    | set(run["weight_vars"].values()))
     df = pp.enrich_data_period_arrimage(spark, TABLE_PATH, period, **kwargs)
 
     targets = [t for t in run["target_variables"] if t in df.columns]
