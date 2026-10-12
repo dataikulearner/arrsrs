@@ -19,3 +19,11 @@ ds = dataiku.Dataset("uds_fac_arrime", ignore_flow=True)
 ds.add_read_partitions("2026q1|v2x2")
 df = dkuspark.get_dataframe(SQLContext(spark.sparkContext), ds)
 print([c for c in df.columns if "LTV" in c.upper()])
+========================================================================
+
+info = dataiku.Dataset("uds_fac_arrime", ignore_flow=True).get_location_info()
+print(info)
+root = info["info"]["path"]
+path = "{}/dt_closing=2026q1/uds_version=v2x2".format(root.rstrip("/"))
+df = spark.read.option("mergeSchema", "true").parquet(path)
+print([c for c in df.columns if "LTV" in c.upper()])
