@@ -1,6 +1,6 @@
 # DSS PySpark recipe: SP_agg for SRS Arrimage (CCIRC SP_agg specification)
-#   inputs  : RDS_SRS_CAPITAL.uds_fac_arrime, axes_periods_par, folder detect_config
-#   output  : SP_agg, partitioned by scope_run (DSS variable "scope_run" = stda | sgcp)
+#   inputs  : axes_periods_par, folder parameters_folder (uds_fac_arrime is read by the code, not a recipe input)
+#   output  : SP_agg, partitioned by scope | period_run | id_set_parameters | period
 #   one row per (segment x target variable x period x run)
 import json
 from functools import reduce
@@ -16,7 +16,10 @@ from utils.logger import create_logger
 
 logger = create_logger(__name__)
 
-TABLE_PATH = "RDS_SRS_CAPITAL.uds_fac_arrime"
+CONFIG_FOLDER = "parameters_folder"
+PARAMS_PATH = "arrimage_params.json"     # path inside CONFIG_FOLDER
+REGISTRY_PATH = "column_registry.json"          # path inside CONFIG_FOLDER
+TABLE_PATH = "uds_fac_arrime"          # dataset name in this project (DETECT_SRS_ARRIMAGE_DEV)
 WEIGHT_SUM_EPSILON = 1.0
 AGG_FUNCS = {"count": F.count, "avg": F.avg, "min": F.min, "max": F.max, "sum": F.sum}
 LITERALS = ["table_path", "period_clone", "period_run_clone", "scope_clone", "id_set_parameters_clone",
@@ -104,22 +107,26 @@ def read_json(folder, path):
 
 # 1. Configuration and scope (DSS variable)
 spark = SparkSession.builder.getOrCreate()
-folder = dataiku.Folder("detect_config")
-params = read_json(folder, "flows/arrimage_params.json")
+folder = dataiku.Folder(CONFIG_FOLDER)
+params = read_json(folder, PARAMS_PATH)
 ap.validate_params(params)
-registry = read_json(folder, "column_registry.json")["arrimage"]
-scope = dataiku.get_custom_variables().get("scope_run")
+registry = read_json(folder, REGISTRY_PATH)["arrimage"]
+# Output partition being built: scope | period_run | id_set_parameters | period (one DSS activity per period)
+dst = {dim: dataiku.dku_flow_variables.get("DKU_DST_" + dim) for dim in ["scope", "period_run", "period"]}
+scope = dst["scope"] or dataiku.get_custom_variables().get("scope_run")
 if scope not in params[ap.SCOPES_KEY]:
-    raise ValueError("DSS variable scope_run = {!r}, expected one of {}".format(scope, sorted(params[ap.SCOPES_KEY])))
-target_partition = dataiku.dku_flow_variables.get("DKU_DST_scope_run")
-if target_partition not in (None, scope):
-    raise ValueError("Building partition {} with scope_run = {}".format(target_partition, scope))
+    raise ValueError("scope = {!r}, expected one of {}".format(scope, sorted(params[ap.SCOPES_KEY])))
 
-# 2. Tasks of the scope, one source partition per (version, period)
+# 2. Tasks of this partition: every version of the scope, for the period being built
 par = dataiku.Dataset("axes_periods_par").get_dataframe()
 par = par[par["scope_run_clone"] == scope]
+if dst["period"]:
+    par = par[par["period_clone"] == dst["period"]]
+if dst["period_run"]:
+    par = par[par["period_run_clone"] == dst["period_run"]]
 if par.empty:
-    raise ValueError("No task for scope {}".format(scope))
+    raise ValueError("No task in axes_periods_par for partition {}".format(dst))
+print("Partition {}: {} tasks".format(dst, len(par)))
 
 results, errors = [], []
 try:
