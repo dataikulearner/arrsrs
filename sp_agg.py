@@ -35,22 +35,27 @@ def output_columns(run):
 
 
 def aggregate_axes(df, axes, targets, run):
-    """Rows of one (period, axes): one groupBy per target variable"""
+    """Rows of one (period, axes): ONE groupBy for all target variables, then one row per target
+    (same rows as one groupBy per target, but one shuffle instead of len(targets))"""
     weight = run["weight_vars"]["t_agg5"]
-    rows = []
-    for t in targets:
-        aggs = [AGG_FUNCS[fn](t).cast("long" if fn == "count" else "double").alias(alias)
-                for alias, fn in run["target_agg_functions"].items()]                 # seg_agg1, t_agg1..4
-        aggs += [F.sum(col).cast("double").alias(alias) for alias, col in run["segment_vars"].items()]
-        aggs += [F.sum(t + "_x_weight").alias("tw_sum"), F.sum(weight).alias("w_sum")]
+    aggs = [F.sum(col).cast("double").alias(alias) for alias, col in run["segment_vars"].items()]
+    aggs.append(F.sum(weight).alias("w_sum"))
+    structs = []
+    for i, t in enumerate(targets):
+        p = "_{}_".format(i)
+        aggs += [AGG_FUNCS[fn](t).cast("long" if fn == "count" else "double").alias(p + alias)
+                 for alias, fn in run["target_agg_functions"].items()]                 # seg_agg1, t_agg1..4
+        aggs.append(F.sum(t + "_x_weight").alias(p + "tw_sum"))
         t_agg5 = F.lit(None)                    # only for the targets detected on agg5 (rates, maturity)
         if "agg5" in run["target_detection_mapping"].get(t, []):
-            t_agg5 = F.when(F.abs("w_sum") > WEIGHT_SUM_EPSILON, F.col("tw_sum") / F.col("w_sum"))
-        rows.append(df.groupBy("seg_axes_value", pp.UDS_VERSION_COL).agg(*aggs)
-                    .withColumn("t_agg5", t_agg5.cast("double")).drop("tw_sum", "w_sum")
-                    .withColumn("seg_axes", F.lit("|".join(axes)))
-                    .withColumn("t_variable_clone", F.lit(t)))
-    return reduce(DataFrame.unionByName, rows)
+            t_agg5 = F.when(F.abs("w_sum") > WEIGHT_SUM_EPSILON, F.col(p + "tw_sum") / F.col("w_sum"))
+        structs.append(F.struct(F.lit(t).alias("t_variable_clone"),
+                                *[F.col(p + alias).alias(alias) for alias in run["target_agg_functions"]],
+                                t_agg5.cast("double").alias("t_agg5")))
+    return (df.groupBy("seg_axes_value", pp.UDS_VERSION_COL).agg(*aggs)
+            .withColumn("_row", F.explode(F.array(*structs)))
+            .select("seg_axes_value", pp.UDS_VERSION_COL, *run["segment_vars"], "_row.*")
+            .withColumn("seg_axes", F.lit("|".join(axes))))
 
 
 def compute_period(spark, run, registry, period, period_run, axes_list, errors):
@@ -112,6 +117,10 @@ def read_json(folder, path):
 
 # 1. Configuration and scope (DSS variable)
 spark = SparkSession.builder.getOrCreate()
+# Aggregates are small: 200 shuffle partitions per groupBy made tens of thousands of tiny tasks
+spark.conf.set("spark.sql.adaptive.enabled", "true")
+spark.conf.set("spark.sql.adaptive.coalescePartitions.enabled", "true")
+spark.conf.set("spark.sql.shuffle.partitions", "50")
 folder = dataiku.Folder(CONFIG_FOLDER)
 params = read_json(folder, PARAMS_PATH)
 ap.validate_params(params)
