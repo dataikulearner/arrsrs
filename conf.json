@@ -1,0 +1,287 @@
+{
+  "flow_type": "arrimage",
+  "entity_value": "SRS_ARRIMAGE",
+  "exclude_no_approach": true,
+  "line_fac_col": "id_tiers",
+  "target_agg_functions": {
+    "seg_agg1": "count",
+    "t_agg1": "avg",
+    "t_agg2": "min",
+    "t_agg3": "max",
+    "t_agg4": "sum"
+  },
+  "weight_vars": {
+    "t_agg5": "mt_cal_ead_tot"
+  },
+  "segment_vars": {
+    "seg_agg2": "mt_cal_ead_tot",
+    "seg_agg3": "mt_cal_rwa_tot"
+  },
+  "segment_aggs": {
+    "seg_agg5": {
+      "variable": "seg_agg2",
+      "function": "mean",
+      "nb_last": 4
+    },
+    "seg_agg6": {
+      "variable": "seg_agg1",
+      "function": "mean",
+      "nb_last": 4
+    },
+    "seg_agg7": {
+      "variable": "seg_agg3",
+      "function": "mean",
+      "nb_last": 4
+    }
+  },
+  "segment_filters": {
+    "seg_filter_1": "entity"
+  },
+  "segment_conditions": {},
+  "entity_mapping_col": "entity",
+  "entity_title": "entity",
+  "materiality_metric": "metric1",
+  "nb_last": 4,
+  "nb_periods": 10,
+  "nbs_last": 2,
+  "s_window": 4,
+  "thresholds_topline": {
+    "mt_cal_ead_tot": 5000,
+    "mt_cal_rwa_tot": 5000
+  },
+  "thresholds_topseg": {
+    "seg_agg5": 500
+  },
+  "seg_agg_materiality": "agg4",
+  "line_materiality_col": "mt_cal_ead_tot",
+  "scopes": {
+    "stda": {
+      "label": "STDA",
+      "runs": [
+        {
+          "uds_version": "v2x1",
+          "periods_str": "2026Q2/2026Q1/2025Q4/2025Q3/2025Q2/2025Q1/2024Q4/2024Q3/2024Q2/2024Q1/2023Q4/2023Q3",
+          "nb_past_quarters": 12
+        },
+        {
+          "uds_version": "v3x1",
+          "periods_str": "2026Q2/2026Q1/2025Q4/2025Q3/2025Q2/2025Q1/2024Q4/2024Q3/2024Q2/2024Q1/2023Q4",
+          "nb_past_quarters": 11
+        }
+      ],
+      "target_variables": [
+        "mt_cal_ead_tot",
+        "mt_cal_rwa_tot",
+        "mt_cal_expo_tot",
+        "nb_maturite_irba",
+        "tx_lgd_avant_flex",
+        "tx_edf_1an_irba"
+      ],
+      "target_detection_mapping": {
+        "mt_cal_ead_tot": [
+          "agg4"
+        ],
+        "mt_cal_rwa_tot": [
+          "agg4"
+        ],
+        "mt_cal_expo_tot": [
+          "agg4"
+        ],
+        "nb_maturite_irba": [
+          "agg5"
+        ],
+        "tx_lgd_avant_flex": [
+          "agg5"
+        ],
+        "tx_edf_1an_irba": [
+          "agg5"
+        ]
+      },
+      "axes_str": "entity/entity___cd_pole_pmas___cd_metier_pmas/entity___cd_pays_business_cal/entity___cd_pays_business_cal___cd_tp_approche/entity___cd_site_comptable/entity___cd_cec/entity___cd_asset_class/entity___cd_site_comptable___cd_tp_approche/entity___cd_site_comptable___cd_type_encours/entity___cd_site_comptable___cd_sous_type_risque/entity___cd_site_comptable___cd_type_encours_arc/entity___cd_site_comptable___id_modele_notation/entity___cd_site_comptable___cd_tp_approche___cd_cec",
+      "thresholds_segment_anomaly": {
+        "entity": 0.2,
+        "entity|cd_pole_pmas|cd_metier_pmas": 0.5,
+        "entity|cd_pays_business_cal": 0.3,
+        "entity|cd_pays_business_cal|cd_tp_approche": 0.5,
+        "entity|cd_site_comptable": 0.3,
+        "entity|cd_cec": 0.3,
+        "entity|cd_asset_class": 0.3,
+        "entity|cd_site_comptable|cd_tp_approche": 0.5,
+        "entity|cd_site_comptable|cd_type_encours": 0.5,
+        "entity|cd_site_comptable|cd_sous_type_risque": 0.5,
+        "entity|cd_site_comptable|cd_type_encours_arc": 0.5,
+        "entity|cd_site_comptable|id_modele_notation": 0.5,
+        "entity|cd_site_comptable|cd_tp_approche|cd_cec": 0.5
+      },
+      "thresholds_segment_materiality": {
+        "reference": {
+          "tab": "seg_axes == 'entity'",
+          "measure": "materiality",
+          "top": 10
+        },
+        "mt_cal_ead_tot": {
+          "segment": "((seg_agg5 > 100000) | ((seg_agg5 > 10000) & (deviation > 2)))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        },
+        "mt_cal_rwa_tot": {
+          "segment": "((seg_agg7 > 100000) | ((seg_agg7 > 10000) & (deviation > 2)))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        },
+        "mt_cal_expo_tot": {
+          "segment": "((seg_agg5 > 100000) | ((seg_agg5 > 10000) & (deviation > 2)))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        },
+        "nb_maturite_irba": {
+          "segment": "(seg_agg5 > 10000) & (observed_value > 0) & (expected_value > 0) & ((observed_value > 2 * expected_value) | (expected_value > 2 * observed_value))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        },
+        "tx_lgd_avant_flex": {
+          "segment": "(seg_agg5 > 100000) | ((seg_agg5 > 10000) & (deviation > 3))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        },
+        "tx_edf_1an_irba": {
+          "segment": "(seg_agg5 > 100000) | ((seg_agg5 > 10000) & (deviation > 3))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        }
+      },
+      "thresholds_line_anomaly": {
+        "line_deviation_seg": 0.3,
+        "line_deviation_ref": 0.3,
+        "count_min": 2,
+        "mt_cal_ead_tot": 5000,
+        "mt_cal_rwa_tot": 5000,
+        "mt_cal_expo_tot": 5000,
+        "nb_maturite_irba": 1,
+        "tx_lgd_avant_flex": 0.01,
+        "tx_edf_1an_irba": 0.01
+      },
+      "thresholds_negligibility": {
+        "mt_cal_ead_tot": 0.1,
+        "mt_cal_rwa_tot": 0.1,
+        "mt_cal_expo_tot": 0.1,
+        "nb_maturite_irba": 0.1,
+        "tx_lgd_avant_flex": 0.001,
+        "tx_edf_1an_irba": 0.001
+      }
+    },
+    "sgcp": {
+      "label": "SGCP",
+      "runs": [
+        {
+          "uds_version": "latest",
+          "periods_str": "2026Q2/2026Q1/2025Q4/2025Q3/2025Q2/2025Q1/2024Q4/2024Q3/2024Q2/2024Q1/2023Q4/2023Q3",
+          "nb_past_quarters": 12
+        }
+      ],
+      "target_variables": [
+        "mt_cal_ead_tot",
+        "mt_cal_rwa_tot",
+        "mt_cal_prov_gen_aff_tot",
+        "nb_maturite_irba",
+        "tx_lgd_avant_flex",
+        "tx_pd_moyenne",
+        "tx_ltv_cur",
+        "tx_lgd_irba"
+      ],
+      "target_detection_mapping": {
+        "mt_cal_ead_tot": [
+          "agg4"
+        ],
+        "mt_cal_rwa_tot": [
+          "agg4"
+        ],
+        "nb_maturite_irba": [
+          "agg5"
+        ],
+        "tx_lgd_avant_flex": [
+          "agg5"
+        ],
+        "tx_pd_moyenne": [
+          "agg5"
+        ],
+        "tx_ltv_cur": [
+          "agg5"
+        ],
+        "tx_lgd_irba": [
+          "agg5"
+        ],
+        "mt_cal_prov_gen_aff_tot": [
+          "agg4"
+        ]
+      },
+      "axes_str": "entity/entity___cd_secteur_eco/entity___cd_metier_pmas_ap_acc/entity___cd_stage/entity___cd_note_tiers/entity___cd_classe_expo/entity___cd_secteur_eco___cd_metier_pmas_ap_acc/entity___cd_secteur_eco___cd_stage",
+      "thresholds_segment_anomaly": {
+        "entity": 0.2,
+        "entity|cd_secteur_eco": 0.3,
+        "entity|cd_metier_pmas_ap_acc": 0.3,
+        "entity|cd_stage": 0.3,
+        "entity|cd_note_tiers": 0.3,
+        "entity|cd_classe_expo": 0.3,
+        "entity|cd_secteur_eco|cd_metier_pmas_ap_acc": 0.5,
+        "entity|cd_secteur_eco|cd_stage": 0.5
+      },
+      "thresholds_segment_materiality": {
+        "reference": {
+          "tab": "seg_axes == 'entity'",
+          "measure": "materiality",
+          "top": 10
+        },
+        "mt_cal_ead_tot": {
+          "segment": "((seg_agg5 > 100000) | ((seg_agg5 > 10000) & (deviation > 2))) & (~seg_axes.str.contains('cd_note_tiers'))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        },
+        "mt_cal_rwa_tot": {
+          "segment": "((seg_agg7 > 100000) | ((seg_agg7 > 10000) & (deviation > 2))) & (~seg_axes.str.contains('cd_note_tiers'))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        },
+        "nb_maturite_irba": {
+          "segment": "(seg_agg5 > 10000) & (observed_value > 0) & (expected_value > 0) & (~seg_axes.str.contains('cd_note_tiers')) & ((observed_value > 2 * expected_value) | (expected_value > 2 * observed_value))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        },
+        "tx_lgd_avant_flex": {
+          "segment": "(seg_agg5 > 100000) | ((seg_agg5 > 10000) & (deviation > 3))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        },
+        "tx_pd_moyenne": {
+          "segment": "(seg_agg5 > 100000) | ((seg_agg5 > 10000) & (deviation > 3))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        },
+        "tx_ltv_cur": {
+          "segment": "(seg_agg5 > 1000000) | ((seg_agg5 > 100000) & (deviation > 3))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        },
+        "tx_lgd_irba": {
+          "segment": "(seg_agg5 > 100000) | ((seg_agg5 > 10000) & (deviation > 3))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        },
+        "mt_cal_prov_gen_aff_tot": {
+          "segment": "((seg_agg5 > 100000) | ((seg_agg5 > 10000) & (deviation > 2))) & (~seg_axes.str.contains('cd_note_tiers'))",
+          "rank": "(rank <= 30) & (rank_axes <= 10)"
+        }
+      },
+      "thresholds_line_anomaly": {
+        "line_deviation_seg": 0.3,
+        "line_deviation_ref": 0.3,
+        "count_min": 2,
+        "mt_cal_ead_tot": 5000,
+        "mt_cal_rwa_tot": 5000,
+        "nb_maturite_irba": 1,
+        "tx_lgd_avant_flex": 0.01,
+        "tx_pd_moyenne": 0.01,
+        "tx_ltv_cur": 0.01,
+        "tx_lgd_irba": 0.01,
+        "mt_cal_prov_gen_aff_tot": 1
+      },
+      "thresholds_negligibility": {
+        "mt_cal_ead_tot": 0.1,
+        "mt_cal_rwa_tot": 0.1,
+        "nb_maturite_irba": 0.1,
+        "tx_lgd_avant_flex": 0.001,
+        "tx_pd_moyenne": 0.001,
+        "tx_ltv_cur": 0.001,
+        "tx_lgd_irba": 0.001,
+        "mt_cal_prov_gen_aff_tot": 0.1
+      }
+    }
+  }
+}
