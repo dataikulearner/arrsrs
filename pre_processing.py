@@ -275,17 +275,22 @@ def _list_partitions(table_path: str) -> list:
     import dataiku
     return dataiku.Dataset(table_path, ignore_flow=True).list_partitions()
 
+def _partition_path(table_path: str, pid: str) -> str:
+    """HDFS folder of a partition, e.g. <root>/dt_closing=2026q1/uds_version=v2x2"""
+    import dataiku
+    root = dataiku.Dataset(table_path, ignore_flow=True).get_location_info()["info"]["path"]
+    dt_closing, uds_version = pid.split("|")
+    return "{}/dt_closing={}/uds_version={}".format(root.rstrip("/"), dt_closing, uds_version)
+
 
 def _read_partition(spark_sess: SparkSession, table_path: str, pid: str) -> pyspark.sql.DataFrame:
-    """Read one partition of the DSS dataset and put the column names in lower case"""
-    import dataiku
-    import dataiku.spark as dkuspark
-    from pyspark.sql import SQLContext
-    logger.info("Reading {} partition {}".format(table_path, pid))
-    # ignore_flow: in a recipe, DSS refuses explicit partitions on a Flow input; the partition is chosen here
-    dataset = dataiku.Dataset(table_path, ignore_flow=True)
-    dataset.add_read_partitions(pid)
-    df = dkuspark.get_dataframe(SQLContext(spark_sess.sparkContext), dataset)
+    """Read one partition and put the column names in lower case.
+    The parquet files of one partition do not all have the same schema (e.g. TX_LTV_CUR is missing in
+    some files of 2026q1|v2x2): the DSS reader keeps the schema of one file and drops such columns,
+    so the files are read directly with mergeSchema."""
+    path = _partition_path(table_path, pid)
+    logger.info("Reading {} partition {} from {}".format(table_path, pid, path))
+    df = spark_sess.read.option("mergeSchema", "true").parquet(path)
     return df.toDF(*[col.lower() for col in df.columns])
 
 
