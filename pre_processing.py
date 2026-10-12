@@ -53,6 +53,10 @@ DEFAULTS = {
     "exclude_no_approach": True,
     # Value given to empty axes: concat_ws skips NULLs and would shift the segment id
     "null_axis_value": "NULL",
+    # Columns the run uses (axes, targets, segment and weight variables); None = every registry column.
+    # Only these must exist in the partition; other registry columns missing from it are added as NULL
+    # (the registry is shared by the scopes, and older versions lack some columns, e.g. tx_ltv_cur)
+    "used_columns": None,
 }
 
 
@@ -234,6 +238,19 @@ def required_source_columns(cfg: dict) -> list:
     return cols
 
 
+def needed_source_columns(cfg: dict) -> list:
+    """Source columns that must exist: used_columns, expanded through the derivation rules"""
+    if not cfg.get("used_columns"):
+        return required_source_columns(cfg)
+    spec = cfg["spec"]
+    rules = dict(spec["derived_axes"], **spec["derived_measures"])
+    needed = {spec["approach_col"]} | ({cfg["entity_col"]} if cfg["entity_col"] else set())
+    for name in cfg["used_columns"]:
+        name = name.lower()
+        needed.update(_rule_columns(rules[name]) if name in rules else [name])
+    return [col for col in required_source_columns(cfg) if col in needed]
+
+
 def check_required_columns(columns: list, cfg: dict, context: str):
     """Fail fast when a needed column is absent from the source
     Args:
@@ -244,7 +261,7 @@ def check_required_columns(columns: list, cfg: dict, context: str):
     Raises:
         ValueError listing every missing column
     """
-    missing = [col for col in required_source_columns(cfg) if col not in columns]
+    missing = [col for col in needed_source_columns(cfg) if col not in columns]
     if missing:
         raise ValueError("arrimage: columns {} are missing in {}".format(missing, context))
 
@@ -256,7 +273,7 @@ def check_required_columns(columns: list, cfg: dict, context: str):
 def _list_partitions(table_path: str) -> list:
     """Partition ids of the DSS dataset"""
     import dataiku
-    return dataiku.Dataset(table_path).list_partitions()
+    return dataiku.Dataset(table_path, ignore_flow=True).list_partitions()
 
 
 def _read_partition(spark_sess: SparkSession, table_path: str, pid: str) -> pyspark.sql.DataFrame:
@@ -265,7 +282,8 @@ def _read_partition(spark_sess: SparkSession, table_path: str, pid: str) -> pysp
     import dataiku.spark as dkuspark
     from pyspark.sql import SQLContext
     logger.info("Reading {} partition {}".format(table_path, pid))
-    dataset = dataiku.Dataset(table_path)
+    # ignore_flow: in a recipe, DSS refuses explicit partitions on a Flow input; the partition is chosen here
+    dataset = dataiku.Dataset(table_path, ignore_flow=True)
     dataset.add_read_partitions(pid)
     df = dkuspark.get_dataframe(SQLContext(spark_sess.sparkContext), dataset)
     return df.toDF(*[col.lower() for col in df.columns])
@@ -325,9 +343,14 @@ def _select_and_cast(df: pyspark.sql.DataFrame, cfg: dict) -> pyspark.sql.DataFr
     """Keep the registry columns only (the source has more than 1,200) with their registry type"""
     columns = cfg["spec"]["columns"]
     select_exprs = []
+    absent = [col for col in required_source_columns(cfg) if col not in df.columns]
+    if absent:
+        logger.warning("arrimage: columns {} not in this partition and not used by the run: NULL".format(absent))
     for col_name in required_source_columns(cfg):
         col_type = columns.get(col_name, {}).get("type", TYPE_STRING)
-        if col_type == TYPE_DOUBLE:
+        if col_name in absent:
+            select_exprs.append(F.lit(None).cast(col_type).alias(col_name))
+        elif col_type == TYPE_DOUBLE:
             select_exprs.append(F.col(col_name).cast("double").alias(col_name))
         else:
             select_exprs.append(_clean_string(col_name).alias(col_name))
