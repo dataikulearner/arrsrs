@@ -27,14 +27,18 @@ ap.validate_params(params)
 segment_aggs = params["segment_aggs"]                 # seg_agg5 = mean(seg_agg2), seg_agg6 = mean(seg_agg1), seg_agg7 = mean(seg_agg3)
 thresholds_topseg = params["thresholds_topseg"]       # {"seg_agg5": 500}
 
-# 1. Task of this partition
-dst = {d: dataiku.dku_flow_variables.get("DKU_DST_" + d)
-       for d in ["scope", "period_run", "id_set_parameters", "axe", "t_variable"]}
-df_params = dataiku.Dataset(PAR_DATASET).get_dataframe()
-scope = dst["scope"] or df_params["scope_clone"].values[0]
-t_var = dst["t_variable"] or df_params["t_variable_clone"].values[0]
+# 1. Task of this 
+# 1. Task of this partition: taken ONLY from the partition being built (no silent fallback to the first task)
+flow_vars = dataiku.dku_flow_variables
+dst = {d: flow_vars.get("DKU_DST_" + d) for d in ["scope", "period_run", "id_set_parameters", "axe", "t_variable"]}
+print("DKU_DST variables: {}".format({k: v for k, v in flow_vars.items() if k.startswith("DKU_DST_")}))
+missing_dims = [d for d in ["scope", "period_run", "t_variable"] if not dst[d]]
+if missing_dims:
+    raise ValueError("No DKU_DST_ variable for {}: {} must be partitioned by these dimensions (same names)".format(
+        missing_dims, OUTPUT_DATASET))
+scope, t_var = dst["scope"], dst["t_variable"]
 axe = dst["axe"] or None
-period_run = (dst["period_run"] or dataiku.get_custom_variables()["period_run"]).strip().upper()
+period_run = dst["period_run"].strip().upper()
 if scope not in params[ap.SCOPES_KEY]:
     raise ValueError("scope = {!r}, expected one of {}".format(scope, sorted(params[ap.SCOPES_KEY])))
 print("Task: scope={} t_variable={} axe={} period_run={}".format(scope, t_var, axe, period_run))
