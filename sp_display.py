@@ -1,9 +1,12 @@
 # DSS Python recipe: post-processing for SRS Arrimage (same core as CCIRC: core.post_processing.top_anomalies_line_par)
-#   inputs  : SP_anomalies (partition of one t_variable), SP_toplines_cumul (all periods of the run), parameters_folder
-#   outputs : SP_top_seg, SP_display_seg, SP_display_toplines
+#   inputs  : SP_anomalies (dependency t_variable = Equals: the partition of THIS target), SP_toplines_cumul (all periods),
+#             parameters_folder
+#   outputs : SP_top_seg, SP_display_seg, SP_display_toplines, partitioned scope|period_run|id_set_parameters|t_variable:
+#             one activity = one target; read the outputs with "All partitions" to see every target
 #   Arrimage specifics, handled here without changing the core:
-#     - one call per id_set_parameters_clone (stda v2x1 / v3x1 share the partition; the core merges segments and lines
-#       on (t_variable, seg_axes, seg_axes_value) only and would mix the two versions)
+#     - one call per (id_set_parameters_clone, target) (stda v2x1 / v3x1 share the partition; the core merges segments
+#       and lines on (t_variable, seg_axes, seg_axes_value) only and would mix the two versions)
+#     - id_set_parameters_clone relabelled stda / sgcp after the core, version kept in version_clone
 #     - to_query of the core replaced by a version that quotes values safely (the legacy file defines to_query_simple
 #       twice, and a value containing "'" breaks the query)
 #     - t_agg_name_mapping built as {target: first element of target_detection_mapping[target]}
@@ -29,7 +32,8 @@ LINE_TOPN_FINAL, LINE_TOPN_RUN, LINE_TOPN_REF = 10, 50, 100
 # added as empty columns when the Arrimage lines do not have them
 CORE_EXTRA_LINE_COLS = ["accounting_site_code_post_acc", "lb_site_risque_apres_accr", "pmas_code_post_acc",
                         "business_country", "cd_uds_pmas_metier_ap_acc"]
-TOP_SEG_KEY = ["t_variable_clone", "seg_axes", "seg_axes_value", "period_clone", "scope_clone", "id_set_parameters_clone"]
+TOP_SEG_KEY = ["t_variable_clone", "seg_axes", "seg_axes_value", "period_clone", "scope_clone", "id_set_parameters_clone",
+               "version_clone"]
 
 
 def to_query_arrimage(axes, axes_val, flow_type=None):
@@ -43,6 +47,22 @@ with dataiku.Folder(CONFIG_FOLDER).get_download_stream(PARAMS_PATH) as stream:
     params = json.load(stream)
 ap.validate_params(params)
 runs_by_id = {ap.id_set_params(s, v): ap.resolve_run_params(params, s, v) for s, v in ap.list_runs(params)}
+# Dashboard labels, set AFTER the core: id_set_parameters_clone = scope ("stda", "sgcp"), the run version moves to
+# version_clone ("v2x1", "v3x1", "latest"). The core must still get one call per arrimage_<scope>_<version>
+LABELS = {ap.id_set_params(s, v): (s, v) for s, v in ap.list_runs(params)}
+
+
+def relabel(df):
+    """id_set_parameters_clone arrimage_stda_v2x1 -> stda + version_clone v2x1"""
+    if df.empty:
+        return df
+    unknown = set(df["id_set_parameters_clone"]) - set(LABELS)
+    if unknown:
+        raise ValueError("Unknown id_set_parameters_clone: {}".format(sorted(unknown)))
+    df = df.copy()
+    df["version_clone"] = df["id_set_parameters_clone"].map(lambda i: LABELS[i][1])
+    df["id_set_parameters_clone"] = df["id_set_parameters_clone"].map(lambda i: LABELS[i][0])
+    return df
 
 # 1. Inputs
 df_seg = dataiku.Dataset(SEG_DATASET).get_dataframe()
@@ -60,6 +80,10 @@ for col in ["period_run_clone", "scope_clone"]:
     if df_seg[col].nunique() != 1:
         raise ValueError("{} holds several {}: {}".format(SEG_DATASET, col, sorted(df_seg[col].unique())))
 targets = sorted(df_seg["t_variable_clone"].unique())
+dst_target = dataiku.dku_flow_variables.get("DKU_DST_t_variable")         # partition being built (None if not)
+if dst_target and targets != [dst_target]:
+    raise ValueError("Building t_variable={} but {} holds {}: set the t_variable dependency of {} to Equals".format(
+        dst_target, SEG_DATASET, targets, SEG_DATASET))
 print("{}: {} rows, scope={} period_run={} versions={} targets={}".format(
     SEG_DATASET, len(df_seg), scope, period_run, sorted(df_seg["id_set_parameters_clone"].unique()), targets))
 print("{}: {} rows, periods={}".format(LINE_DATASET, len(df_line), sorted(df_line["period_clone"].unique())))
@@ -120,24 +144,26 @@ if failures:
     raise ValueError("Post-processing {}: {}".format(scope, failures))
 
 # 4. Checks and write
-df_top = pd.concat(results[OUT_TOP], ignore_index=True)
+df_top = relabel(pd.concat(results[OUT_TOP], ignore_index=True))
 if df_top.empty:
     raise ValueError("No top segment for {} {} (see the core warnings above)".format(scope, period_run))
 print("{} columns: {}".format(OUT_TOP, sorted(df_top.columns)))
 if [c for c in TOP_SEG_KEY if c not in df_top.columns]:
     raise ValueError("{} misses {}".format(OUT_TOP, [c for c in TOP_SEG_KEY if c not in df_top.columns]))
-dup =df_top.duplicated(TOP_SEG_KEY).sum()
+dup = df_top.duplicated(TOP_SEG_KEY).sum()
 if dup:
     raise ValueError("{} duplicated segments in {} on {}".format(dup, OUT_TOP, TOP_SEG_KEY))
 outputs = {
     OUT_TOP: df_top.sort_values(TOP_SEG_KEY),
-    OUT_SEG: pd.concat(results[OUT_SEG], ignore_index=True),
-    OUT_LINES: pd.concat(results[OUT_LINES], ignore_index=True),
+    OUT_SEG: relabel(pd.concat(results[OUT_SEG], ignore_index=True)),
+    OUT_LINES: relabel(pd.concat(results[OUT_LINES], ignore_index=True)),
 }
 for name in [OUT_SEG, OUT_LINES]:
-    key = [c for c in ["id_set_parameters_clone", "segment_id", "period_clone", "index"] if c in outputs[name].columns]
+    key = [c for c in ["id_set_parameters_clone", "version_clone", "t_variable_clone", "segment_id", "period_clone",
+                       "index"] if c in outputs[name].columns]
     outputs[name] = outputs[name].sort_values(key)
 outputs[OUT_LINES] = outputs[OUT_LINES][sorted(outputs[OUT_LINES].columns)]
 for name, df in outputs.items():
-    print("{}: {} rows".format(name, len(df)))
+    print("{}: {} rows, by version and target:\n{}".format(
+        name, len(df), df.groupby(["id_set_parameters_clone", "version_clone", "t_variable_clone"]).size().to_string()))
     dataiku.Dataset(name).write_with_schema(df.reset_index(drop=True))
