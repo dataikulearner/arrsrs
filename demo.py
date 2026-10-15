@@ -48,3 +48,20 @@ for part, df in [("stda", stda), ("sgcp", sgcp)]:
 for part in ["stda", "sgcp"]:
     d = dataiku.Dataset("demo_schema_spark"); d.add_read_partitions(part)
     dkuspark.get_dataframe(sql_ctx, d).show()         # both readable
+
+
+from pyspark.sql import SparkSession
+spark = SparkSession.builder.getOrCreate()
+path = "/tmp/demo_merge_schema"          # any HDFS path you can write to
+
+# Two files in the SAME folder: the second one has an extra column
+spark.createDataFrame([("F1", 100.0)], ["id_fem", "ead"]).write.mode("overwrite").parquet(path)
+spark.createDataFrame([("F2", 200.0, 0.8)], ["id_fem", "ead", "tx_ltv_cur"]).write.mode("append").parquet(path)
+
+spark.read.parquet(path).printSchema()
+# may show only id_fem, ead: Spark takes the schema of ONE file -> tx_ltv_cur can disappear
+
+spark.read.option("mergeSchema", "true").parquet(path).show()
+# id_fem | ead   | tx_ltv_cur
+# F1     | 100.0 | null        <- file without the column: NULL
+# F2     | 200.0 | 0.8
